@@ -189,14 +189,14 @@ def sample(image,
       warp_y = tf.clip_by_value(warp_y, 0.0, height - 1.0)
       warp = tf.stack((warp_x, warp_y), axis=-1)
 
-    return tfa_image.resampler(image, warp)
+    return tfa_image.resampler(image, warp,"bernsteinquintic")
 
 
 def perspective_transform(
     image,
     transform_matrix,
     output_shape = None,
-    resampling_type = ResamplingType.BILINEAR,
+    resampling_type = "bernsteinquintic",
     border_type = BorderType.ZERO,
     pixel_type = PixelType.HALF_INTEGER,
     name = "perspective_transform",
