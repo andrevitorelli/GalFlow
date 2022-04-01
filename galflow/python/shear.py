@@ -6,7 +6,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-
+from tensorflow_addons import image as tfa_image
 from galflow.python.transform import transform
 
 __all__ = ["shear", "shear_transformation"]
@@ -58,9 +58,60 @@ def shear_transformation(g1, g2, Fourier=False, name=None):
     jac = jac + tf.pad(tf.reshape(tf.ones_like(g1), [-1,1,1]), tf.constant([[0,0],[2,0],[2,0]]))
     return jac
 
-def shear(img, g1, g2):
-  """ Convenience function to apply a shear to an input image or kimage.
-  """
-  transform_matrix = shear_transformation(g1, g2,
-                                          Fourier=img.dtype == tf.complex64)
-  return transform(img, transform_matrix)
+#def nshear(img, g1, g2):
+#  """ Convenience function to apply a shear to an input image or kimage.
+#  """
+#  transform_matrix = shear_transformation(g1, g2,
+#                                          Fourier=img.dtype == tf.complex64)
+#  return transform(img, transform_matrix)
+
+def shear(img,g1,g2):
+  
+  _ , nx, ny, _ = img.get_shape().as_list()
+  g1 = tf.convert_to_tensor(g1, dtype=tf.float32)
+  g2 = tf.convert_to_tensor(g2, dtype=tf.float32)
+  gsqr = g1**2 + g2**2
+  
+  # Building a batched jacobian
+  jac = tf.stack([ 1. + g1, g2,
+                g2, 1. - g1], axis=1) / tf.expand_dims(tf.sqrt(1.- gsqr),1)
+  jac = tf.reshape(jac, [-1,2,2]) 
+
+  # Inverting these jacobians to follow the TF definition
+  if img.dtype == tf.complex64:
+    transform_matrix = tf.transpose(jac,[0,2,1])
+  else:
+    transform_matrix = tf.linalg.inv(jac)
+  
+  #define a grid at pixel positions
+  warp = tf.stack(tf.meshgrid(tf.linspace(0.,tf.cast(nx,tf.float32)-1.,nx), 
+                              tf.linspace(0.,tf.cast(ny,tf.float32)-1.,ny)),axis=-1)[..., tf.newaxis]
+
+  #get center
+  center = tf.convert_to_tensor([[nx/2],[ny/2]],dtype=tf.float32)
+  
+  #displace center to origin
+  warp = warp - center
+  
+  #if fourier, no half pixel shift needed
+  if  img.dtype is not tf.complex64:
+    warp +=.5
+
+  #apply shear
+  warp = tf.matmul(transform_matrix[:, tf.newaxis, tf.newaxis, ...], warp)[...,0]
+
+  #return center
+  warp = warp + center[...,0] 
+ 
+  #if fourier, no half pixel shift needed
+  if  img.dtype is not tf.complex64:
+    warp -=.5
+    
+  #apply resampler
+  if img.dtype == tf.complex64:
+    a = tfa_image.resampler(tf.math.real(img),warp,'bernsteinquintic')
+    b = tfa_image.resampler(tf.math.imag(img),warp,'bernsteinquintic')
+    sheared = tf.complex(a,b)
+  else:
+    sheared = tfa_image.resampler(img,warp,'bernsteinquintic')
+  return sheared
