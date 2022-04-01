@@ -65,7 +65,20 @@ def shear_transformation(g1, g2, Fourier=False, name=None):
 #                                          Fourier=img.dtype == tf.complex64)
 #  return transform(img, transform_matrix)
 
-def shear(img,g1,g2):
+def shear(img,g1,g2,interpolation='bernsteinquintic'):
+  """
+   Applies a shear g1, g2 on an image. 
+   
+   Args: 
+     img: tf.tensor [batch,nx,ny,channels] float32
+       batch of images
+     g1, g2: shears to be applied
+     
+  Returns:
+    sheared: tf.tensor [batch,nx,ny,channels]
+      sheared image
+
+  """
   
   _ , nx, ny, _ = img.get_shape().as_list()
   g1 = tf.convert_to_tensor(g1, dtype=tf.float32)
@@ -109,9 +122,9 @@ def shear(img,g1,g2):
     
   #apply resampler
   if img.dtype == tf.complex64:
-    a = tfa_image.resampler(tf.math.real(img),warp,'bernsteinquintic')
-    b = tfa_image.resampler(tf.math.imag(img),warp,'bernsteinquintic')
+    a = tfa_image.resampler(tf.math.real(img),warp,interpolation)
+    b = tfa_image.resampler(tf.math.imag(img),warp,interpolation)
     sheared = tf.complex(a,b)
   else:
-    sheared = tfa_image.resampler(img,warp,'bernsteinquintic')
+    sheared = tfa_image.resampler(img,warp,interpolation)
   return sheared
