@@ -5,8 +5,9 @@ from __future__ import print_function
 
 import tensorflow as tf
 from galflow.python.tfutils import perspective_transform, PixelType
+from tensorflow_addons.image import resampler
 
-__all__ = ["transform", "compose_transforms", "shift_transformation"]
+__all__ = ["transform", "compose_transforms", "shift_transformation", "dilate"]
 
 def compose_transforms(transforms, name=None):
   """Composes the transforms tensors.
@@ -77,3 +78,35 @@ def transform(img, transform_matrix, keep_center=True, name=None):
       return tf.complex(a,b)
     else:
       return perspective_transform(img, transform_matrix=transform_matrix)
+
+def dilate(img,factor,interpolator="bernsteinquintic"):
+  """ Dilate images by some factor, preserving the center. 
+  
+  Args:
+    img: tf tensor containing [batch_size, nx, ny, channels] images
+    factor: dilation factor
+  
+  Returns:
+    dilated: tf tensor containing [batch_size, nx, ny, channels] images dilated by factor around the centre
+  """
+  img = tf.convert_to_tensor(img,dtype=tf.float32)
+  _, nx, ny, _ = img.get_shape()
+  newx = tf.cast(nx*factor,tf.int32)
+  newy = tf.cast(nx*factor,tf.int32)
+
+  if not newx % 2:
+    newx +=1
+  if not newy % 2:
+    newy +=1
+
+  warp = tf.stack(tf.meshgrid(tf.linspace(0.,tf.cast(nx,tf.float32)-1.,newx), 
+                              tf.linspace(0.,tf.cast(ny,tf.float32)-1.,newy)
+                             ),
+                  axis=-1)[tf.newaxis,...]
+
+  resampled= resampler(img,warp,interpolator)
+  _, nrx, nry, _ = resampled[:,...,:].get_shape()
+  
+  newcentre_x, newcentre_y = nrx//2,nrx//2
+  dilated = resampled[:,newcentre_x-nx//2:newcentre_x+nx//2+1,newcentre_y-ny//2:newcentre_y+ny//2+1,:]
+  return dilated
