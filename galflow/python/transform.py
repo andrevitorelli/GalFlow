@@ -84,7 +84,7 @@ def dilate(img,factor,interpolator="bernsteinquintic"):
   
   Args:
     img: tf tensor containing [batch_size, nx, ny, channels] images
-    factor: dilation factor
+    factor: dilation factor (factor >= 1)
   
   Returns:
     dilated: tf tensor containing [batch_size, nx, ny, channels] images dilated by factor around the centre
@@ -109,4 +109,4 @@ def dilate(img,factor,interpolator="bernsteinquintic"):
   
   newcentre_x, newcentre_y = nrx//2,nrx//2
   dilated = resampled[:,newcentre_x-nx//2:newcentre_x+nx//2+1,newcentre_y-ny//2:newcentre_y+ny//2+1,:]
-  return dilated
+  return dilated/factor**2
